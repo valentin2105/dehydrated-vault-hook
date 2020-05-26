@@ -37,7 +37,7 @@ upload_certificate() {
   TOP=$(<<<"${DOMAIN}" grep -oP '[^\.]+\.[^\.]+$')
   HOST="${DOMAIN/.$TOP/}"
 
-  echo " + Storing certificates in vault at ${VAULT_SECRET_BASE}/${TOP}/${HOST}"
+  echo " + Storing certificates in vault at ${VAULT_SECRET_BASE}/${DOMAIN}"
 
   acquire_token
 
@@ -50,8 +50,8 @@ upload_certificate() {
       --arg chain "$(< "${CHAINFILE}" )" \
       --arg fullchain "$(< "${FULLCHAINFILE}" )" \
       --arg timestamp "${TIMESTAMP}" \
-      '{cert:$cert,key:$key,chain:$chain,fullchain:$fullchain,timestamp:$timestamp}' ) \
-    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/${TOP}/${HOST}"
+      '{data:{cert:$cert,key:$key,chain:$chain,fullchain:$fullchain,timestamp:$timestamp,owner:"letsencrypt"}}' ) \
+    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/${DOMAIN}"
 }
 
 deploy_challenge() {
