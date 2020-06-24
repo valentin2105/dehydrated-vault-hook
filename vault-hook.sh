@@ -34,16 +34,11 @@ upload_certificate() {
   # - TIMESTAMP
   #   Timestamp when the specified certificate was created.
 
-  TOP=$(<<<"${DOMAIN}" grep -oP '[^\.]+\.[^\.]+$')
-  HOST="${DOMAIN/.$TOP/}"
-
-  echo " + Storing certificates in vault at ${VAULT_SECRET_BASE}/${DOMAIN}"
-
-  acquire_token
+  echo " + Storing certificates in ${VAULT_ADDRESS} at ${VAULT_SECRET_BASE}/${DOMAIN}"
 
   curl \
     --silent \
-    --header "X-Vault-Token: $VAULT_TOKEN" \
+    --header "X-Vault-Token: ${VAULT_TOKEN}" \
     --request POST \
     -d @<( jq -n --arg cert "$(< "${CERTFILE}" )" \
       --arg key "$(< "${KEYFILE}" )" \
@@ -108,7 +103,7 @@ deploy_cert() {
     # - TIMESTAMP
     #   Timestamp when the specified certificate was created.
 
-  upload_certificate "$@"
+  upload_certificate "${@}"
 }
 
 unchanged_cert() {
@@ -130,7 +125,25 @@ unchanged_cert() {
     # - CHAINFILE
     #   The path of the file containing the intermediate certificate(s).
 
-  upload_certificate "$@"
+  acquire_token
+
+  CURRENT_SECRET=$(curl --silent \
+    --header "X-Vault-Request: true" \
+    --header "X-Vault-Token: ${VAULT_TOKEN}" \
+    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/${DOMAIN}")
+  CURRENT_FILE_KEY_SHA=$(openssl rsa -modulus -noout -in ${KEYFILE} \
+    | sha256sum)
+  CURRENT_SECRET_CERT_SHA=$(jq .data.data.cert --raw-output <<< "${CURRENT_SECRET}" \
+    | openssl x509 -modulus -noout -in - \
+    | sha256sum)
+  # check if the certificate match
+  if [[ "${CURRENT_SECRET_CERT_SHA% *}" == "${CURRENT_FILE_KEY_SHA% *}" ]]
+  then
+    echo " + The certificate is already up to date in ${VAULT_ADDRESS} at ${VAULT_SECRET_BASE}/${DOMAIN}"
+  else
+    echo "LOADING"
+    upload_certificate "${@}"
+  fi
 }
 
 invalid_challenge() {
@@ -173,7 +186,7 @@ exit_hook() {
   :
 }
 
-HANDLER="$1"; shift
+HANDLER="${1}"; shift
 if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|exit_hook)$ ]]; then
-  "$HANDLER" "$@"
+  "${HANDLER}" "${@}"
 fi
