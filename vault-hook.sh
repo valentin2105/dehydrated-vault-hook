@@ -35,7 +35,8 @@ upload_certificate() {
   #   Timestamp when the specified certificate was created.
 
   echo " + Storing certificates in ${VAULT_ADDRESS} at ${VAULT_SECRET_BASE}/${DOMAIN}"
-
+  acquire_token
+  
   curl \
     --silent \
     --header "X-Vault-Token: ${VAULT_TOKEN}" \
@@ -46,7 +47,7 @@ upload_certificate() {
       --arg fullchain "$(< "${FULLCHAINFILE}" )" \
       --arg timestamp "${TIMESTAMP}" \
       '{data:{cert:$cert,key:$key,chain:$chain,fullchain:$fullchain,timestamp:$timestamp,owner:"letsencrypt"}}' ) \
-    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/${DOMAIN}"
+    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/data/${DOMAIN}"
 }
 
 deploy_challenge() {
@@ -130,7 +131,7 @@ unchanged_cert() {
   CURRENT_SECRET=$(curl --silent \
     --header "X-Vault-Request: true" \
     --header "X-Vault-Token: ${VAULT_TOKEN}" \
-    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/${DOMAIN}")
+    "${VAULT_ADDRESS}/v1/${VAULT_SECRET_BASE}/data/${DOMAIN}")
   CURRENT_FILE_KEY_SHA=$(openssl rsa -modulus -noout -in ${KEYFILE} \
     | sha256sum)
   CURRENT_SECRET_CERT_SHA=$(jq .data.data.cert --raw-output <<< "${CURRENT_SECRET}" \
